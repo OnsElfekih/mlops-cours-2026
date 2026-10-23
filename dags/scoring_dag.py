@@ -14,6 +14,7 @@ ENV_VARS = {
     "AWS_ENDPOINT_URL": "http://s3.storage.svc.cluster.local:8333",
     "AWS_DEFAULT_REGION": "us-east-1",
     "MLFLOW_TRACKING_URI": "http://mlflow.mlflow.svc.cluster.local:5000",
+    "LAUNCHED_BY": "airflow",
 }
 
 S3_SECRET = [
@@ -23,7 +24,7 @@ S3_SECRET = [
 ]
 
 with DAG(
-    dag_id="scoring_pipeline",
+    dag_id="scoring_dag",
     description="Pipeline German Credit avec Kubernetes et MLflow",
     start_date=datetime(2026, 10, 1),
     schedule=None,
