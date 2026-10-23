@@ -1,0 +1,13 @@
+# Feature store local : registre et stockage en ligne SQLite.
+# Les données hors ligne sont stockées dans des fichiers Parquet.
+project: scoring
+registry: data/registry.db
+provider: local
+offline_store:
+  type: file
+online_store:
+  type: sqlite
+  path: data/online_store.db
+entity_key_serialization_version: 3
+auth:
+  type: no_auth
