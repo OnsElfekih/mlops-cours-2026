@@ -1,12 +1,15 @@
 # Fichier : labs/m0-setup/smoke_mlflow.py
-"""Smoke test MLflow : logge un run (paramètre, métriques, artefact) sur le serveur."""
+"""Smoke test MLflow : enregistre un run avec paramètres, métriques et artefact."""
 
 import os
 
 import mlflow
 
-# Serveur MLflow du cluster, exposé sur le poste par `make pf` (voir .env).
-mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
+# Serveur MLflow du cluster, accessible via make pf.
+mlflow.set_tracking_uri(
+    os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
+)
+
 mlflow.set_experiment("smoke-test")
 
 with mlflow.start_run(run_name="hello-mlops") as run:
@@ -14,7 +17,7 @@ with mlflow.start_run(run_name="hello-mlops") as run:
     mlflow.log_metric("accuracy", 0.42)
     mlflow.log_metric("loss", 1.337)
 
-    # L'artefact passe par le serveur MLflow jusqu'au bucket S3.
+    # Enregistrement de l'artefact dans le stockage configuré pour MLflow.
     mlflow.log_text("hello mlops\n", "hello.txt")
 
     print("Run logged successfully.")
