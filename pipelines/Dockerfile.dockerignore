@@ -1,0 +1,10 @@
+# Exclure tous les fichiers par défaut
+*
+
+# Inclure uniquement les fichiers nécessaires
+!dataset.yaml
+!params.yaml
+!src/
+!pipelines/requirements.txt
+!pipelines/__init__.py
+!pipelines/stage.py

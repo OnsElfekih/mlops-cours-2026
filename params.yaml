@@ -1,0 +1,15 @@
+# Paramètres du pipeline, suivis par DVC (dvc params diff).
+# Le contrat des données est dans dataset.yaml.
+
+prepare:
+  id_column: request_id #Identifiant unique de chaque demande de crédit
+  event_timestamp: "2026-01-01T00:00:00+00:00" #Date fixe des features pour Feast
+
+train:
+  model: logistic_regression #Algorithme utilisé pour l'entraînement
+  C: 0.1 #Régularisation de la régression logistique
+  class_weight: balanced 
+  n_estimators: 200 #Nombre d'arbres pour les modèles d'ensemble
+  max_depth: 8
+  learning_rate: 0.1 #Taux d'apprentissage du Gradient Boosting
+  random_state: 42 #Reproductibilité des résultats
