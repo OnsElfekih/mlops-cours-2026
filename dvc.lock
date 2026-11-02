@@ -45,3 +45,141 @@ stages:
       hash: md5
       md5: 24b8e38b9c8688d495afc8eb5cb40127
       size: 139022
+  prepare:
+    cmd: python -m src.prepare
+    deps:
+    - path: data/raw/dataset.csv
+      hash: md5
+      md5: 24b8e38b9c8688d495afc8eb5cb40127
+      size: 139022
+    - path: src/dataset_config.py
+      hash: md5
+      md5: 3dfbc7152adfcc892ce94654d08a25e0
+      size: 8225
+    - path: src/prepare.py
+      hash: md5
+      md5: f89457b0057b054c213485c36d1c9e5d
+      size: 1857
+    params:
+      params.yaml:
+        prepare:
+          id_column: request_id
+          event_timestamp: '2026-01-01T00:00:00+00:00'
+      dataset.yaml:
+        features:
+          numeric:
+          - duration
+          - credit_amount
+          - installment_commitment
+          - residence_since
+          - age
+          - existing_credits
+          - num_dependents
+          categorical:
+          - checking_status
+          - credit_history
+          - purpose
+          - savings_status
+          - employment
+          - personal_status
+          - other_parties
+          - property_magnitude
+          - other_payment_plans
+          - housing
+          - job
+          - own_telephone
+          - foreign_worker
+        split:
+          test_size: 0.2
+          random_state: 42
+        target:
+          column: credit_risk
+          positive_class: bad
+    outs:
+    - path: data/processed/features.parquet
+      hash: md5
+      md5: 0d9ad0727ab03a014a6bb0880adaf0d2
+      size: 31033
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 5b4c80197c39e35005952dad0103f2bc
+      size: 28657
+    - path: data/processed/train.csv
+      hash: md5
+      md5: e80207c40ceab588d24ec13bab3f72c5
+      size: 114565
+  train:
+    cmd: python -m src.train
+    deps:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 5b4c80197c39e35005952dad0103f2bc
+      size: 28657
+    - path: data/processed/train.csv
+      hash: md5
+      md5: e80207c40ceab588d24ec13bab3f72c5
+      size: 114565
+    - path: src/dataset_config.py
+      hash: md5
+      md5: 3dfbc7152adfcc892ce94654d08a25e0
+      size: 8225
+    - path: src/train.py
+      hash: md5
+      md5: 365db9572a62eb863e2b11850bfc1c93
+      size: 7056
+    params:
+      params.yaml:
+        train:
+          model: logistic_regression
+          C: 0.1
+          class_weight: balanced
+          n_estimators: 200
+          max_depth: 8
+          learning_rate: 0.1
+          random_state: 42
+      dataset.yaml:
+        metrics:
+          primary: roc_auc
+          promotion_threshold: 0.7
+          cost_matrix:
+            false_negative: 5
+            false_positive: 1
+    outs:
+    - path: models/model
+      hash: md5
+      md5: 590cb37384090f98b02c594f8c286569.dir
+      size: 8950
+      nfiles: 2
+  evaluate:
+    cmd: python -m src.evaluate
+    deps:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 5b4c80197c39e35005952dad0103f2bc
+      size: 28657
+    - path: models/model
+      hash: md5
+      md5: 590cb37384090f98b02c594f8c286569.dir
+      size: 8950
+      nfiles: 2
+    - path: src/evaluate.py
+      hash: md5
+      md5: 865af4126f72242e613247ca21534a43
+      size: 1754
+    - path: src/train.py
+      hash: md5
+      md5: 365db9572a62eb863e2b11850bfc1c93
+      size: 7056
+    params:
+      dataset.yaml:
+        metrics:
+          primary: roc_auc
+          promotion_threshold: 0.7
+          cost_matrix:
+            false_negative: 5
+            false_positive: 1
+    outs:
+    - path: reports/metrics.json
+      hash: md5
+      md5: cea9dc7206de36224fefb591fb83c6f9
+      size: 285
