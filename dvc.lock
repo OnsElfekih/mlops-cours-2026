@@ -109,7 +109,7 @@ stages:
       md5: e80207c40ceab588d24ec13bab3f72c5
       size: 114565
   train:
-    cmd: python -m src.train
+    cmd: LAUNCHED_BY=dvc python -m src.train
     deps:
     - path: data/processed/test.csv
       hash: md5
@@ -125,8 +125,8 @@ stages:
       size: 8225
     - path: src/train.py
       hash: md5
-      md5: 365db9572a62eb863e2b11850bfc1c93
-      size: 7056
+      md5: 313fe087deb112f49b15c025963ba340
+      size: 7465
     params:
       params.yaml:
         train:
@@ -147,7 +147,7 @@ stages:
     outs:
     - path: models/model
       hash: md5
-      md5: 590cb37384090f98b02c594f8c286569.dir
+      md5: 845407fb54007ab0aca7ff88b292f385.dir
       size: 8950
       nfiles: 2
   evaluate:
@@ -159,7 +159,7 @@ stages:
       size: 28657
     - path: models/model
       hash: md5
-      md5: 590cb37384090f98b02c594f8c286569.dir
+      md5: 845407fb54007ab0aca7ff88b292f385.dir
       size: 8950
       nfiles: 2
     - path: src/evaluate.py
@@ -168,8 +168,8 @@ stages:
       size: 1754
     - path: src/train.py
       hash: md5
-      md5: 365db9572a62eb863e2b11850bfc1c93
-      size: 7056
+      md5: 313fe087deb112f49b15c025963ba340
+      size: 7465
     params:
       dataset.yaml:
         metrics:

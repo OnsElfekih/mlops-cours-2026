@@ -161,13 +161,25 @@ def main():
     mlflow.set_experiment("scoring")
 
     with mlflow.start_run(run_name=args.model) as run:
-        mlflow.set_tags(
-            {
-                "model_type": args.model,
-                "dataset": config.name,
-                "launched_by": os.environ.get("LAUNCHED_BY", "manual"),
-            }
-        )
+        tags = {
+            "model_type": args.model,
+            "dataset": config.name,
+            "launched_by": os.environ.get("LAUNCHED_BY", "manual"),
+        }
+
+        if tags["launched_by"] == "dvc":
+            with open(ROOT / "dvc.lock", encoding="utf-8") as file:
+                lock = yaml.safe_load(file)
+
+            data_md5 = next(
+                output["md5"]
+                for stage in lock["stages"].values()
+                for output in stage.get("outs", [])
+                if output["path"] == config.raw_path
+            )
+            tags["data_md5"] = data_md5
+
+        mlflow.set_tags(tags)
 
         mlflow.log_params(
             {

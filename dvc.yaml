@@ -31,7 +31,7 @@ stages:
       - data/processed/features.parquet
 
   train:
-    cmd: python -m src.train
+    cmd: LAUNCHED_BY=dvc python -m src.train
     deps:
       - src/dataset_config.py
       - src/train.py
