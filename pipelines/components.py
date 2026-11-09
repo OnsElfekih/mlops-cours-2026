@@ -18,7 +18,7 @@ from kfp.dsl import HTML, Artifact, ClassificationMetrics, Dataset, Input, Markd
 
 # Image construite et poussée à l'étape 2.4. Nouveau code dans l'image = nouveau tag.
 # Surcharge possible à la compilation : PIPELINE_IMAGE=… python -m pipelines.scoring_pipeline
-PIPELINE_IMAGE = os.getenv("PIPELINE_IMAGE", "localhost:5001/scoring-pipeline:1.3.0")
+PIPELINE_IMAGE = os.getenv("PIPELINE_IMAGE", "localhost:5001/scoring-pipeline:1.4.0")
 # Serveur MLflow du cours vu depuis un pod (DNS interne <service>.<namespace>)
 MLFLOW_URI = "http://mlflow.mlflow:5000"
 
@@ -197,56 +197,67 @@ def register_model(run_id: str, mlflow_uri: str) -> str:
 
 @dsl.component(base_image=PIPELINE_IMAGE, install_kfp_package=False)
 def detect_drift(
-    train_data: Input[Dataset],
-    test_data: Input[Dataset],
+    reference_data: Input[Dataset],
+    current_data: Input[Dataset],
     report: Output[Artifact],
+    table: Output[Markdown],
     html: Output[HTML],
-    markdown: Output[Markdown],
-    metrics: Output[Metrics],
-    fail_on_drift: bool = False,
+    drift: Output[Metrics],
+    ks_alpha: float,
+    psi_threshold: float,
+    drift_share: float,
+    fail_on_drift: bool,
 ) -> bool:
-    """Détecte le Data Drift avec KS, PSI et Evidently."""
+    """Gate : python -m src.detect_drift ; renvoie True si les données courantes dérivent."""
     import json
     from pathlib import Path
 
     from pipelines.stage import run_stage
-    from src.train import TRAIN_CSV, TEST_CSV
+    from src.detect_drift import REPORT_HTML, REPORT_JSON, REPORT_MD
 
-    args = [
-        "--reference", str(TRAIN_CSV),
-        "--current", str(TEST_CSV),
-        "--output-dir", "reports/drift",
-    ]
-
-    if fail_on_drift:
-        args.append("--fail-on-drift")
-
+    reference, current = "data/drift/reference.csv", "data/drift/current.csv"
     run_stage(
         "src.detect_drift",
-        args=args,
-        inputs={
-            str(TRAIN_CSV): train_data.path,
-            str(TEST_CSV): test_data.path,
-        },
-        outputs={
-            "reports/drift/drift.json": report.path,
-            "reports/drift/drift.html": html.path,
-            "reports/drift/drift.md": markdown.path,
-        },
-    )
-
-    summary = json.loads(
-        Path(report.path).read_text(encoding="utf-8")
-    )
-
-    metrics.log_metric(
-        "total_features", summary["total_features"]
-    )
-    metrics.log_metric(
-        "drifted_features", summary["drifted_features"]
-    )
-    metrics.log_metric(
-        "drift_share", summary["drift_share"]
-    )
-
+        args=[reference, current, "--ks-alpha", ks_alpha, "--psi-threshold", psi_threshold,
+              "--drift-share", drift_share, *([] if fail_on_drift else ["--no-fail"])],
+        inputs={reference: reference_data.path, current: current_data.path},
+        outputs={str(REPORT_JSON): report.path, str(REPORT_MD): table.path,
+                 str(REPORT_HTML): html.path},
+    )  # fmt: skip
+    summary = json.loads(Path(report.path).read_text())
+    for name in ("n_columns", "n_drifted", "share_drifted"):
+        drift.log_metric(name, summary[name])
+    drift.log_metric("evidently_drifted_columns", summary["evidently"]["drifted_columns"])
     return bool(summary["drift_detected"])
+
+
+@dsl.component(base_image=PIPELINE_IMAGE, install_kfp_package=False)
+def validate_model(
+    model: Input[Model],
+    train_data: Input[Dataset],
+    test_data: Input[Dataset],
+    report: Output[Artifact],
+    table: Output[Markdown],
+    html: Output[HTML],
+    checks: Output[Metrics],
+) -> None:
+    """Gate : python -m src.validate_model (Evidently + tests comportementaux pytest)."""
+    import json
+    from pathlib import Path
+
+    from pipelines.stage import run_stage
+    from src.dataset_config import load_config
+    from src.train import MODEL_DIR, TEST_CSV, TRAIN_CSV
+    from src.validate_model import REPORT_HTML, REPORT_JSON, REPORT_MD
+
+    cfg = load_config()
+    run_stage(
+        "src.validate_model",
+        inputs={str(MODEL_DIR): model.path, str(TRAIN_CSV): train_data.path,
+                str(TEST_CSV): test_data.path},
+        outputs={str(REPORT_JSON): report.path, str(REPORT_MD): table.path,
+                 str(REPORT_HTML): html.path},
+    )  # fmt: skip
+    summary = json.loads(Path(report.path).read_text())
+    for name in ("n_checks", "n_failed", cfg.primary_metric):
+        checks.log_metric(name, summary[name])

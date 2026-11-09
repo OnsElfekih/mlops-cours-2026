@@ -22,9 +22,11 @@ from pipelines.components import (
     register_model,
     train_model,
     validate_data,
+    validate_model,
 )
 
-TRAIN = yaml.safe_load(Path("params.yaml").read_text(encoding="utf-8"))["train"]
+PARAMS = yaml.safe_load(Path("params.yaml").read_text(encoding="utf-8"))
+TRAIN, DRIFT = PARAMS["train"], PARAMS["drift"]
 
 
 @dsl.pipeline(
@@ -40,6 +42,9 @@ def scoring_pipeline(
     learning_rate: float = TRAIN["learning_rate"],
     random_state: int = TRAIN["random_state"],
     mlflow_uri: str = MLFLOW_URI,
+    ks_alpha: float = DRIFT["ks_alpha"],
+    psi_threshold: float = DRIFT["psi_threshold"],
+    drift_share: float = DRIFT["drift_share"],
 ):
     # 1. Ingestion : retries, ressources et timeout
     ingest_task = ingest_data()
@@ -58,9 +63,12 @@ def scoring_pipeline(
 
     # 4. Détection du Data Drift
     drift_task = detect_drift(
-        train_data=prep_task.outputs["train_data"],
-        test_data=prep_task.outputs["test_data"],
-        fail_on_drift=False,
+        reference_data=prep_task.outputs["train_data"],
+        current_data=prep_task.outputs["test_data"],
+        ks_alpha=ks_alpha,
+        psi_threshold=psi_threshold,
+        drift_share=drift_share,
+        fail_on_drift=True,
     )
     drift_task.set_memory_limit("1Gi")
 
@@ -95,12 +103,20 @@ def scoring_pipeline(
     )
     eval_task.set_memory_limit("1Gi")
 
+    # Gate 3 : validation du modèle
+    model_task = validate_model(
+        model=train_task.outputs["model"],
+        train_data=prep_task.outputs["train_data"],
+        test_data=prep_task.outputs["test_data"],
+    )
+    model_task.set_memory_limit("1Gi")
+
     # 6. Enregistrement dans MLflow Model Registry
     register_task = register_model(
         run_id=train_task.outputs["Output"],
         mlflow_uri=mlflow_uri,
     )
-    register_task.after(eval_task)
+    register_task.after(eval_task, model_task)
     register_task.set_memory_limit("1Gi")
 
 

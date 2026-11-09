@@ -1,4 +1,17 @@
-"""Détection du data drift : KS, chi-deux, PSI et Evidently."""
+"""Détecte un drift entre des données de référence et des données courantes (Lab 3).
+
+    python -m src.detect_drift [reference.csv courant.csv] [--no-fail]
+    (défaut : data/processed/train.csv et data/processed/test.csv)
+
+Pour chaque colonne de dataset.yaml (features et cible) :
+- significativité : p-value du test de Kolmogorov-Smirnov (numérique) ou du chi2 (catégorielle) ;
+- magnitude : PSI (Population Stability Index) et, pour une numérique, distance de
+  Wasserstein normalisée (en écarts-types de la référence).
+Une colonne dérive si p-value < ks_alpha ET PSI >= psi_threshold : significatif ET important.
+Gate : le lot dérive si la part de colonnes en drift atteint drift_share ; code retour 1
+(sauf --no-fail). Seuils par défaut : section drift de params.yaml.
+Sorties : reports/drift.json, reports/drift.md (tableau) et reports/drift.html (Evidently).
+"""
 
 import argparse
 import json
@@ -8,179 +21,154 @@ import numpy as np
 import pandas as pd
 import yaml
 from scipy.stats import chi2_contingency, ks_2samp, wasserstein_distance
-from evidently import Report
-from evidently.presets import DataDriftPreset
 
-from src.dataset_config import load_config
+from src.dataset_config import DatasetConfig, load_config
+
+REFERENCE_CSV = Path("data/processed/train.csv")
+CURRENT_CSV = Path("data/processed/test.csv")
+REPORT_JSON = Path("reports/drift.json")
+REPORT_MD = Path("reports/drift.md")
+REPORT_HTML = Path("reports/drift.html")
+BINS = 10  # PSI : déciles de la référence
 
 
-def calculate_psi(reference, current, bins=10):
-    """Calcule le Population Stability Index."""
-    ref = pd.to_numeric(reference, errors="coerce").dropna().to_numpy()
-    cur = pd.to_numeric(current, errors="coerce").dropna().to_numpy()
+def psi(ref: pd.Series, cur: pd.Series) -> float:
+    """Population Stability Index : < 0,1 stable ; 0,1-0,25 modéré ; > 0,25 drift."""
+    ref, cur = ref.dropna(), cur.dropna()
+    if pd.api.types.is_numeric_dtype(ref) and ref.nunique() > BINS:
+        # Intervalles = déciles de la référence (10 % de la référence dans chacun)
+        edges = np.unique(np.quantile(ref, np.linspace(0, 1, BINS + 1)))
+        edges[0], edges[-1] = -np.inf, np.inf
+        r = np.histogram(ref, edges)[0] / len(ref)
+        c = np.histogram(cur, edges)[0] / len(cur)
+    else:  # catégorielle, ou numérique à peu de valeurs : une case par modalité
+        values = sorted(set(ref) | set(cur), key=str)
+        r = ref.value_counts(normalize=True).reindex(values, fill_value=0).to_numpy()
+        c = cur.value_counts(normalize=True).reindex(values, fill_value=0).to_numpy()
+    r, c = np.clip(r, 1e-4, None), np.clip(c, 1e-4, None)  # éviter log(0)
+    return float(np.sum((c - r) * np.log(c / r)))
 
-    if len(ref) == 0 or len(cur) == 0:
-        return None
 
-    edges = np.unique(np.quantile(ref, np.linspace(0, 1, bins + 1)))
+def column_drift(ref: pd.Series, cur: pd.Series, numeric: bool) -> dict:
+    """Test de significativité et mesures de magnitude pour une colonne."""
+    if numeric:
+        p_value = ks_2samp(ref.dropna(), cur.dropna()).pvalue
+        scale = ref.std() or 1.0
+        wasserstein = wasserstein_distance(ref.dropna(), cur.dropna()) / scale
+        test = "KS"
+    else:  # table de contingence modalités x (référence, courant)
+        sample = np.repeat(["reference", "courant"], [len(ref), len(cur)])
+        table = pd.crosstab(pd.concat([ref, cur]).astype(str).to_numpy(), sample)
+        p_value = chi2_contingency(table)[1] if len(table) > 1 else 1.0
+        wasserstein, test = None, "chi2"
+    return {
+        "test": test,
+        "p_value": float(p_value),
+        "psi": psi(ref, cur),
+        "wasserstein": None if wasserstein is None else float(wasserstein),
+    }
 
-    if len(edges) < 2:
-        return 0.0 if np.array_equal(ref, cur) else None
 
-    edges[0] = -np.inf
-    edges[-1] = np.inf
+def numeric_columns(cfg: DatasetConfig, ref: pd.DataFrame) -> list:
+    """Colonnes traitées comme numériques : numériques du contrat (et sensibles numériques)."""
+    return [
+        c for c in cfg.columns
+        if c not in (cfg.target, *cfg.categorical) and pd.api.types.is_numeric_dtype(ref[c])
+    ]  # fmt: skip
 
-    ref_hist = np.histogram(ref, bins=edges)[0] / len(ref)
-    cur_hist = np.histogram(cur, bins=edges)[0] / len(cur)
 
-    epsilon = 1e-6
-    ref_hist = np.clip(ref_hist, epsilon, None)
-    cur_hist = np.clip(cur_hist, epsilon, None)
+def detect(cfg: DatasetConfig, ref, cur, ks_alpha: float, psi_threshold: float) -> list:
+    """Une ligne par colonne du contrat : statistiques et verdict."""
+    numeric = numeric_columns(cfg, ref)
+    rows = []
+    for col in cfg.columns:
+        stats = column_drift(ref[col], cur[col], col in numeric)
+        drift = stats["p_value"] < ks_alpha and stats["psi"] >= psi_threshold
+        rows.append({"column": col, **stats, "drift": drift})
+    return rows
 
-    return float(
-        np.sum((cur_hist - ref_hist) * np.log(cur_hist / ref_hist))
+
+def evidently_report(cfg: DatasetConfig, ref, cur, drift_share: float, path: Path) -> dict:
+    """Rapport HTML Evidently (DataDriftPreset) ; renvoie son propre verdict pour comparer."""
+    from evidently import DataDefinition, Dataset, Report
+    from evidently.presets import DataDriftPreset
+
+    numeric = numeric_columns(cfg, ref)
+    definition = DataDefinition(
+        numerical_columns=numeric,
+        categorical_columns=[c for c in cfg.columns if c not in numeric],
     )
+    report = Report([DataDriftPreset(columns=cfg.columns, drift_share=drift_share)])
+    snapshot = report.run(
+        Dataset.from_pandas(cur[cfg.columns], data_definition=definition),
+        Dataset.from_pandas(ref[cfg.columns], data_definition=definition),
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    snapshot.save_html(str(path))
+    count = snapshot.dict()["metrics"][0]["value"]  # DriftedColumnsCount
+    return {"drifted_columns": int(count["count"]), "share": round(float(count["share"]), 4)}
 
 
-def detect(reference, current, cfg, params):
-    """Compare les distributions des variables explicatives."""
-    results = []
-    alpha = params["ks_alpha"]
-    psi_threshold = params["psi_threshold"]
-
-    for col in cfg.numeric:
-        ref = pd.to_numeric(reference[col], errors="coerce").dropna()
-        cur = pd.to_numeric(current[col], errors="coerce").dropna()
-
-        ks = ks_2samp(ref, cur)
-        psi = calculate_psi(ref, cur)
-
-        std = float(ref.std())
-        wasserstein = (
-            float(wasserstein_distance(ref, cur) / std)
-            if std > 0 else None
+def markdown(rows: list, summary: dict) -> str:
+    """Tableau des statistiques par colonne (affiché par l'UI Kubeflow)."""
+    lines = [
+        f"### Drift : {summary['n_drifted']}/{summary['n_columns']} colonnes "
+        f"({'DRIFT' if summary['drift_detected'] else 'pas de drift'})",
+        "",
+        "| Colonne | Test | p-value | PSI | Wasserstein | Verdict |",
+        "|---|---|---|---|---|---|",
+    ]
+    for r in sorted(rows, key=lambda r: -r["psi"]):
+        w = "" if r["wasserstein"] is None else f"{r['wasserstein']:.3f}"
+        lines.append(
+            f"| {r['column']} | {r['test']} | {r['p_value']:.4f} | {r['psi']:.3f} | {w} "
+            f"| {'DRIFT' if r['drift'] else 'OK'} |"
         )
-
-        drift = bool(
-            ks.pvalue < alpha
-            or (psi is not None and psi > psi_threshold)
-        )
-
-        results.append({
-            "feature": col,
-            "type": "numeric",
-            "ks_pvalue": float(ks.pvalue),
-            "psi": psi,
-            "wasserstein_normalized": wasserstein,
-            "drift_detected": drift,
-        })
-
-    for col in cfg.categorical:
-        ref = reference[col].fillna("__MISSING__").astype(str)
-        cur = current[col].fillna("__MISSING__").astype(str)
-
-        categories = sorted(set(ref) | set(cur))
-
-        counts = np.array([
-            [int((ref == value).sum()) for value in categories],
-            [int((cur == value).sum()) for value in categories],
-        ])
-
-        _, pvalue, _, _ = chi2_contingency(counts)
-
-        results.append({
-            "feature": col,
-            "type": "categorical",
-            "chi2_pvalue": float(pvalue),
-            "drift_detected": bool(pvalue < alpha),
-        })
-
-    return results
+    return "\n".join(lines) + "\n"
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--reference", default="data/processed/train.csv")
-    parser.add_argument("--current", default="data/processed/test.csv")
-    parser.add_argument("--output-dir", default="reports/drift")
-    parser.add_argument("--fail-on-drift", action="store_true")
+def main() -> int:
+    defaults = yaml.safe_load(Path("params.yaml").read_text(encoding="utf-8"))["drift"]
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("reference", nargs="?", default=str(REFERENCE_CSV))
+    parser.add_argument("current", nargs="?", default=str(CURRENT_CSV))
+    parser.add_argument("--ks-alpha", type=float, default=defaults["ks_alpha"])
+    parser.add_argument("--psi-threshold", type=float, default=defaults["psi_threshold"])
+    parser.add_argument("--drift-share", type=float, default=defaults["drift_share"])
+    parser.add_argument("--no-fail", action="store_true", help="drift signalé, code retour 0")
     args = parser.parse_args()
 
     cfg = load_config()
-    params = yaml.safe_load(
-        Path("params.yaml").read_text(encoding="utf-8")
-    )["drift"]
-
-    reference = pd.read_csv(args.reference)
-    current = pd.read_csv(args.current)
-
-    features = [*cfg.numeric, *cfg.categorical]
-
-    results = detect(reference, current, cfg, params)
-
-    drift_count = sum(item["drift_detected"] for item in results)
-    drift_share = drift_count / len(results)
-    drift_detected = drift_share >= params["drift_share"]
-
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
+    ref, cur = pd.read_csv(args.reference), pd.read_csv(args.current)
+    rows = detect(cfg, ref, cur, args.ks_alpha, args.psi_threshold)
+    drifted = [r["column"] for r in rows if r["drift"]]
+    share = len(drifted) / len(rows)
     summary = {
-        "reference_rows": len(reference),
-        "current_rows": len(current),
-        "total_features": len(results),
-        "drifted_features": drift_count,
-        "drift_share": drift_share,
-        "drift_detected": drift_detected,
-        "features": results,
+        "drift_detected": share >= args.drift_share,
+        "n_columns": len(rows),
+        "n_drifted": len(drifted),
+        "share_drifted": round(share, 4),
+        "drifted": drifted,
+        "thresholds": {
+            "ks_alpha": args.ks_alpha,
+            "psi_threshold": args.psi_threshold,
+            "drift_share": args.drift_share,
+        },
+        "rows": {"reference": len(ref), "current": len(cur)},
+        "evidently": evidently_report(cfg, ref, cur, args.drift_share, REPORT_HTML),
+        "columns": rows,
     }
+    REPORT_JSON.parent.mkdir(parents=True, exist_ok=True)
+    REPORT_JSON.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", "utf-8")
+    REPORT_MD.write_text(markdown(rows, summary), encoding="utf-8")
+    print(markdown(rows, summary))
+    print(f"Evidently (p-value seule) : {summary['evidently']['drifted_columns']} colonne(s)")
+    verdict = "DRIFT DÉTECTÉ" if summary["drift_detected"] else "pas de drift"
+    print(f"{verdict} : {drifted} ({share:.0%} des colonnes, seuil {args.drift_share:.0%})")
+    return 1 if summary["drift_detected"] and not args.no_fail else 0
 
-    (output_dir / "drift.json").write_text(
-        json.dumps(summary, indent=2),
-        encoding="utf-8",
-    )
 
-    report = Report(metrics=[DataDriftPreset()])
-    snapshot = report.run(
-        current_data=current[features],
-        reference_data=reference[features],
-    )
-
-    snapshot.save_html(str(output_dir / "drift.html"))
-    snapshot.save_json(str(output_dir / "evidently.json"))
-
-    lines = [
-        "# Rapport de Data Drift",
-        "",
-        f"- Observations de référence : {len(reference)}",
-        f"- Observations actuelles : {len(current)}",
-        f"- Variables analysées : {len(results)}",
-        f"- Variables avec drift : {drift_count}",
-        f"- Proportion de drift : {drift_share:.2%}",
-        f"- Drift détecté : {drift_detected}",
-        "",
-        "## Résultats par variable",
-        "",
-    ]
-
-    for item in results:
-        status = "DRIFT" if item["drift_detected"] else "OK"
-        lines.append(f"- {item['feature']} : {status}")
-
-    (output_dir / "drift.md").write_text(
-        "\n".join(lines) + "\n",
-        encoding="utf-8",
-    )
-
-    print(f"Variables analysées : {len(results)}")
-    print(f"Variables avec drift : {drift_count}")
-    print(f"Proportion de drift : {drift_share:.2%}")
-    print(f"Drift détecté : {drift_detected}")
-    print(f"Rapports enregistrés dans : {output_dir}")
-
-    if drift_detected and args.fail_on_drift:
-        raise SystemExit(1)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
