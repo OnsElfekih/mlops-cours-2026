@@ -15,6 +15,7 @@ from kfp import compiler, dsl, kubernetes
 
 from pipelines.components import (
     MLFLOW_URI,
+    detect_drift,
     evaluate_model,
     ingest_data,
     prepare_features,
@@ -48,14 +49,22 @@ def scoring_pipeline(
 
     # 2. Validation
     validate_task = validate_data(raw_data=ingest_task.outputs["raw_data"])
-    validate_task.set_memory_limit("512Mi")
+    validate_task.set_memory_limit("1Gi")
 
     # 3. Préparation
     prep_task = prepare_features(raw_data=ingest_task.outputs["raw_data"])
     prep_task.after(validate_task)
     prep_task.set_memory_limit("1Gi")
 
-    # 4. Entraînement
+    # 4. Détection du Data Drift
+    drift_task = detect_drift(
+        train_data=prep_task.outputs["train_data"],
+        test_data=prep_task.outputs["test_data"],
+        fail_on_drift=False,
+    )
+    drift_task.set_memory_limit("1Gi")
+
+    # 5. Entraînement
     train_task = train_model(
         raw_data=ingest_task.outputs["raw_data"],
         train_data=prep_task.outputs["train_data"],
@@ -71,6 +80,7 @@ def scoring_pipeline(
         kfp_run_id=dsl.PIPELINE_JOB_ID_PLACEHOLDER,
     )
 
+    train_task.after(drift_task)
     train_task.set_cpu_request("500m").set_cpu_limit("2")
     train_task.set_memory_request("512Mi").set_memory_limit("2Gi")
     kubernetes.set_timeout(train_task, 1800)

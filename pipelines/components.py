@@ -14,11 +14,11 @@ paramètre ne doit dépendre d'une constante de ce module.
 import os
 
 from kfp import dsl
-from kfp.dsl import Artifact, ClassificationMetrics, Dataset, Input, Metrics, Model, Output
+from kfp.dsl import HTML, Artifact, ClassificationMetrics, Dataset, Input, Markdown, Metrics, Model, Output
 
 # Image construite et poussée à l'étape 2.4. Nouveau code dans l'image = nouveau tag.
 # Surcharge possible à la compilation : PIPELINE_IMAGE=… python -m pipelines.scoring_pipeline
-PIPELINE_IMAGE = os.getenv("PIPELINE_IMAGE", "localhost:5001/scoring-pipeline:1.0.0")
+PIPELINE_IMAGE = os.getenv("PIPELINE_IMAGE", "localhost:5001/scoring-pipeline:1.3.0")
 # Serveur MLflow du cours vu depuis un pod (DNS interne <service>.<namespace>)
 MLFLOW_URI = "http://mlflow.mlflow:5000"
 
@@ -43,21 +43,22 @@ def ingest_data(raw_data: Output[Dataset]) -> None:
 def validate_data(
     raw_data: Input[Dataset],
     report: Output[Artifact],
+    html: Output[HTML],
     checks: Output[Metrics],
 ) -> None:
-    """Gate : python -m src.validate_data ; un contrôle en échec fait échouer le step."""
+    """Gate : suite Great Expectations ; un échec arrête le run."""
     import json
     from pathlib import Path
 
     from pipelines.stage import run_stage
     from src.dataset_config import load_config
-    from src.validate_data import REPORT_JSON
+    from src.validate_data import REPORT_HTML, REPORT_JSON
 
     cfg = load_config()
     run_stage(
         "src.validate_data",
         inputs={cfg.raw_path: raw_data.path},
-        outputs={str(REPORT_JSON): report.path},  # reports/validation.json
+        outputs={str(REPORT_JSON): report.path, str(REPORT_HTML): html.path},
     )
     summary = json.loads(Path(report.path).read_text())
     for name in ("n_checks", "n_failed", "rows", "positive_rate"):
@@ -192,3 +193,60 @@ def register_model(run_id: str, mlflow_uri: str) -> str:
         f"name = '{MODEL_NAME}' and run_id = '{run_id}'"
     )
     return str(versions[0].version)
+
+
+@dsl.component(base_image=PIPELINE_IMAGE, install_kfp_package=False)
+def detect_drift(
+    train_data: Input[Dataset],
+    test_data: Input[Dataset],
+    report: Output[Artifact],
+    html: Output[HTML],
+    markdown: Output[Markdown],
+    metrics: Output[Metrics],
+    fail_on_drift: bool = False,
+) -> bool:
+    """Détecte le Data Drift avec KS, PSI et Evidently."""
+    import json
+    from pathlib import Path
+
+    from pipelines.stage import run_stage
+    from src.train import TRAIN_CSV, TEST_CSV
+
+    args = [
+        "--reference", str(TRAIN_CSV),
+        "--current", str(TEST_CSV),
+        "--output-dir", "reports/drift",
+    ]
+
+    if fail_on_drift:
+        args.append("--fail-on-drift")
+
+    run_stage(
+        "src.detect_drift",
+        args=args,
+        inputs={
+            str(TRAIN_CSV): train_data.path,
+            str(TEST_CSV): test_data.path,
+        },
+        outputs={
+            "reports/drift/drift.json": report.path,
+            "reports/drift/drift.html": html.path,
+            "reports/drift/drift.md": markdown.path,
+        },
+    )
+
+    summary = json.loads(
+        Path(report.path).read_text(encoding="utf-8")
+    )
+
+    metrics.log_metric(
+        "total_features", summary["total_features"]
+    )
+    metrics.log_metric(
+        "drifted_features", summary["drifted_features"]
+    )
+    metrics.log_metric(
+        "drift_share", summary["drift_share"]
+    )
+
+    return bool(summary["drift_detected"])
