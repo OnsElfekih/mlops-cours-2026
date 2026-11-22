@@ -1,4 +1,3 @@
-
 # Fichier : pipelines/scoring_pipeline.py
 """Pipeline KFP « scoring-pipeline » du Lab 2.
 
@@ -47,8 +46,9 @@ def scoring_pipeline(
     kubernetes.set_timeout(ingest_task, 600)
 
     # 2. Validation
+    # Gate 1 : le contrat de données (suite Great Expectations versionnée dans gx/)
     validate_task = validate_data(raw_data=ingest_task.outputs["raw_data"])
-    validate_task.set_memory_limit("512Mi")
+    validate_task.set_memory_limit("1Gi")
 
     # 3. Préparation
     prep_task = prepare_features(raw_data=ingest_task.outputs["raw_data"])

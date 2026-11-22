@@ -8,7 +8,7 @@ from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperato
 from kubernetes import client as k8s
 
 
-IMAGE = "localhost:5001/scoring-pipeline:1.0.0"
+IMAGE = "localhost:5001/scoring-pipeline:1.1.0"
 
 WORKSPACE = (
     "s3://airflow-workspace/"
