@@ -1,0 +1,43 @@
+Downloading numpy (17.1MiB)
+ Downloaded numpy
+Installed 8 packages in 8ms
+No settings file detected at /home/onselfekih/Bureau/MLOps/mlops-cours-2026/modelscan-settings.toml. Using defaults.
+
+Scanning /tmp/champion/model.skops:130507644567344.npy using modelscan.scanners.NumpyUnsafeOpScan model scan
+Scanning /tmp/champion/model.skops:130507644682576.npy using modelscan.scanners.NumpyUnsafeOpScan model scan
+Scanning /tmp/champion/model.skops:130507752390160.npy using modelscan.scanners.NumpyUnsafeOpScan model scan
+Scanning /tmp/champion/model.skops:130507772666992.npy using modelscan.scanners.NumpyUnsafeOpScan model scan
+Scanning /tmp/champion/model.skops:130507752637616.npy using modelscan.scanners.NumpyUnsafeOpScan model scan
+Scanning /tmp/champion/model.skops:130507752636944.npy using modelscan.scanners.NumpyUnsafeOpScan model scan
+Scanning /tmp/champion/model.skops:130507752390352.npy using modelscan.scanners.NumpyUnsafeOpScan model scan
+Scanning /tmp/champion/model.skops:130507752389200.npy using modelscan.scanners.NumpyUnsafeOpScan model scan
+Scanning /tmp/champion/model.skops:130507752386896.npy using modelscan.scanners.NumpyUnsafeOpScan model scan
+Scanning /tmp/champion/model.skops:130507752390544.npy using modelscan.scanners.NumpyUnsafeOpScan model scan
+Scanning /tmp/champion/model.skops:130507752386128.npy using modelscan.scanners.NumpyUnsafeOpScan model scan
+
+--- Summary ---
+
+ No issues found! 🎉
+
+--- Skipped ---
+
+Total skipped: 8 - run with --show-skipped to see the full list.
+
+Skipped files list:
+
+The following file /tmp/champion/requirements.txt was skipped during a ModelScan scan:
+Model Scan did not scan file
+The following file /tmp/champion/serving_input_example.json was skipped during a ModelScan scan:
+Model Scan did not scan file
+The following file /tmp/champion/MLmodel was skipped during a ModelScan scan:
+Model Scan did not scan file
+The following file /tmp/champion/python_env.yaml was skipped during a ModelScan scan:
+Model Scan did not scan file
+The following file /tmp/champion/registered_model_meta was skipped during a ModelScan scan:
+Model Scan did not scan file
+The following file /tmp/champion/model.skops:schema.json was skipped during a ModelScan scan:
+Model Scan did not scan file
+The following file /tmp/champion/conda.yaml was skipped during a ModelScan scan:
+Model Scan did not scan file
+The following file /tmp/champion/input_example.json was skipped during a ModelScan scan:
+Model Scan did not scan file
