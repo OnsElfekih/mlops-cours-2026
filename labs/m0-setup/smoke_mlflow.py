@@ -6,9 +6,7 @@ import os
 import mlflow
 
 # Serveur MLflow du cluster, accessible via make pf.
-mlflow.set_tracking_uri(
-    os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
-)
+mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 
 mlflow.set_experiment("smoke-test")
 

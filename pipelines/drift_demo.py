@@ -1,3 +1,11 @@
+"""Démonstration de drift (Lab 3) : une nouvelle clientèle comparée à celle d'entraînement.
+
+ingest -> prepare -> simulate_drift (test déplacé) -> detect_drift (train vs test déplacé)
+Le scénario est dans params.yaml (drift.simulation). Par défaut le drift est signalé sans
+bloquer (fail_on_drift=False) : le run réussit et le rapport montre le drift.
+Compilation : python -m pipelines.drift_demo   (écrit drift_demo.yaml)
+"""
+
 from pathlib import Path
 
 import yaml

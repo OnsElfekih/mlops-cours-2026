@@ -1,3 +1,4 @@
+# Fichier : src/validate_data.py
 """Valide un fichier de données contre le contrat Great Expectations du projet (gx/).
 
 Gate du pipeline (Labs 2 et 3) : si une expectation échoue, le script sort avec le code 1

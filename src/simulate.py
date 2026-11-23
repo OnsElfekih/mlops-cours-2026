@@ -1,3 +1,4 @@
+# Fichier : src/simulate.py
 """Fabrique des données de test à partir de vraies données (Lab 3).
 
     python -m src.simulate corrupt entree.csv sortie.csv   # bugs de données silencieux

@@ -168,7 +168,5 @@ def main() -> int:
     return 1 if summary["drift_detected"] and not args.no_fail else 0
 
 
-
-
 if __name__ == "__main__":
     raise SystemExit(main())
