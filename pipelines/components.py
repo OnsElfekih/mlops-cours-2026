@@ -225,6 +225,7 @@ def evaluate_model(
     MlflowClient(mlflow_uri).log_dict(run_id, results, str(METRICS_JSON))
     return float(results[cfg.primary_metric])
 
+
 @dsl.component(base_image=PIPELINE_IMAGE, install_kfp_package=False)
 def validate_model(
     model: Input[Model],

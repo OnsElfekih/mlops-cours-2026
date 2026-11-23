@@ -31,9 +31,7 @@ def execute(module: str, args, workdir: Path, env: dict | None = None) -> None:
     """Exécute un module du projet dans le dossier temporaire."""
     shutil.copyfile(ROOT / "params.yaml", workdir / "params.yaml")
     run_env = {**os.environ, **(env or {})}
-    run_env["PYTHONPATH"] = os.pathsep.join(
-        filter(None, [str(ROOT), os.getenv("PYTHONPATH")])
-    )
+    run_env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(ROOT), os.getenv("PYTHONPATH")]))
     config = Path(os.getenv("DATASET_CONFIG", ROOT / "dataset.yaml")).resolve()
     run_env["DATASET_CONFIG"] = str(config)
     cmd = [sys.executable, "-m", module, *map(str, args)]
@@ -67,6 +65,7 @@ def run_stage(module: str, args=(), inputs=None, outputs=None, env=None) -> None
 
 # Fonctions utilisées par Airflow pour partager les fichiers via S3.
 
+
 def _s3(workspace: str):
     """Crée le client S3 et identifie le bucket."""
     import boto3
@@ -85,9 +84,7 @@ def pull(workspace: str, work: Path) -> None:
     s3, bucket, prefix = _s3(workspace)
     if bucket not in [b["Name"] for b in s3.list_buckets()["Buckets"]]:
         s3.create_bucket(Bucket=bucket)
-    for page in s3.get_paginator("list_objects_v2").paginate(
-        Bucket=bucket, Prefix=f"{prefix}/"
-    ):
+    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=f"{prefix}/"):
         for obj in page.get("Contents", []):
             target = work / obj["Key"].removeprefix(f"{prefix}/")
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -97,10 +94,7 @@ def pull(workspace: str, work: Path) -> None:
 def snapshot(work: Path) -> dict[Path, int]:
     """Enregistre les dates de modification des fichiers."""
     return {
-        p: p.stat().st_mtime_ns
-        for d in OUTPUT_DIRS
-        for p in (work / d).rglob("*")
-        if p.is_file()
+        p: p.stat().st_mtime_ns for d in OUTPUT_DIRS for p in (work / d).rglob("*") if p.is_file()
     }
 
 
