@@ -1,4 +1,3 @@
-
 """Génère des requêtes JSON pour tester l'API FastAPI."""
 
 import argparse

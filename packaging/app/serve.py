@@ -1,4 +1,3 @@
-
 """API de scoring : sert le modèle ONNX exporté à l'étape 1.
 
 Le schéma d'entrée est construit à partir de dataset.yaml : aucune colonne n'est écrite

@@ -1,4 +1,3 @@
-
 """Étape 6.1 — copie le modèle MLflow dans le model store BentoML.
 
 Usage : uv run python packaging/bento/save_model.py
@@ -19,17 +18,11 @@ from src.dataset_config import load_config  # noqa: E402
 
 cfg = load_config(ROOT / "dataset.yaml")
 
-meta = json.loads(
-    (ROOT / "packaging/model/metadata.json").read_text()
-)
+meta = json.loads((ROOT / "packaging/model/metadata.json").read_text())
 
-mlflow.set_tracking_uri(
-    os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
-)
+mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 
-model = mlflow.sklearn.load_model(
-    f"models:/{meta['model_name']}/{meta['model_version']}"
-)
+model = mlflow.sklearn.load_model(f"models:/{meta['model_name']}/{meta['model_version']}")
 
 saved = bentoml.sklearn.save_model(
     "scoring_model",

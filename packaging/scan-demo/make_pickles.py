@@ -1,4 +1,3 @@
-
 """Étape 7.2 — fabrique deux pickles pour la démo ModelScan. NE PAS LES CHARGER.
 
 - model.pkl     : le modèle sérialisé avec pickle (MLflow 2 utilisait cloudpickle) ;
@@ -37,7 +36,4 @@ with open(HERE / "model.pkl", "wb") as f:
 with open(HERE / "malicious.pkl", "wb") as f:
     pickle.dump({"model": model, "metadata": Payload()}, f)
 
-print(
-    f"Written: {HERE.relative_to(ROOT)}/model.pkl, "
-    f"{HERE.relative_to(ROOT)}/malicious.pkl"
-)
+print(f"Written: {HERE.relative_to(ROOT)}/model.pkl, {HERE.relative_to(ROOT)}/malicious.pkl")

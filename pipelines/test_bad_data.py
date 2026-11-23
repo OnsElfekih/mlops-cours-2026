@@ -38,18 +38,12 @@ def corrupt_data(raw_data: Input[Dataset], corrupted: Output[Dataset]) -> None:
 def bad_data_pipeline():
     ingest_task = ingest_data()
 
-    corrupt_task = corrupt_data(
-        raw_data=ingest_task.outputs["raw_data"]
-    )
+    corrupt_task = corrupt_data(raw_data=ingest_task.outputs["raw_data"])
 
-    validate_task = validate_data(
-        raw_data=corrupt_task.outputs["corrupted"]
-    )
+    validate_task = validate_data(raw_data=corrupt_task.outputs["corrupted"])
     validate_task.set_memory_limit("1Gi")
 
-    prep_task = prepare_features(
-        raw_data=corrupt_task.outputs["corrupted"]
-    )
+    prep_task = prepare_features(raw_data=corrupt_task.outputs["corrupted"])
 
     prep_task.after(validate_task)
 

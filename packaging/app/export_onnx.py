@@ -1,4 +1,3 @@
-
 """Export du modèle MLflow champion vers ONNX."""
 
 import copy
@@ -54,9 +53,7 @@ def onnx_ready(pipeline):
         num = pre.named_transformers_["num"]
         imputer, scaler = num.named_steps["impute"], num.named_steps["scale"]
         imputer.statistics_ = (imputer.statistics_ - scaler.mean_) / scaler.scale_
-        to_float32 = CastTransformer(dtype=np.float32).fit(
-            np.zeros((1, len(cfg.numeric)))
-        )
+        to_float32 = CastTransformer(dtype=np.float32).fit(np.zeros((1, len(cfg.numeric))))
         num.steps = [
             ("scale", scaler),
             ("float32", to_float32),
@@ -111,9 +108,7 @@ metadata = {
     "exported_at": datetime.now(UTC).isoformat(timespec="seconds"),
 }
 
-(MODEL_DIR / "metadata.json").write_text(
-    json.dumps(metadata, indent=2, ensure_ascii=False)
-)
+(MODEL_DIR / "metadata.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False))
 
 size_kb = onnx_path.stat().st_size / 1024
 print(f"ONNX exported: {size_kb:.1f} kB -> {onnx_path.relative_to(ROOT)}")

@@ -1,4 +1,3 @@
-
 """Étape 5 — latence d'inférence : pipeline scikit-learn vs ONNX Runtime.
 
 Usage (racine du repo) : uv run python packaging/app/benchmark.py
@@ -29,14 +28,8 @@ X, _ = cfg.read_xy(ROOT / "data/processed/test.csv")
 
 
 def onnx_feed(df: pd.DataFrame) -> dict:
-    feed = {
-        c: df[[c]].astype(np.float64).to_numpy()
-        for c in cfg.numeric
-    }
-    feed |= {
-        c: df[[c]].fillna("").astype(str).to_numpy(dtype=object)
-        for c in cfg.categorical
-    }
+    feed = {c: df[[c]].astype(np.float64).to_numpy() for c in cfg.numeric}
+    feed |= {c: df[[c]].fillna("").astype(str).to_numpy(dtype=object) for c in cfg.categorical}
     return feed
 
 
@@ -60,13 +53,9 @@ def bench(name, fn):
     }
 
 
-mlflow.set_tracking_uri(
-    os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
-)
+mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 
-sk = mlflow.sklearn.load_model(
-    f"models:/{meta['model_name']}/{meta['model_version']}"
-)
+sk = mlflow.sklearn.load_model(f"models:/{meta['model_name']}/{meta['model_version']}")
 
 ox = ort.InferenceSession(
     str(ROOT / "packaging/model/model.onnx"),
@@ -87,11 +76,7 @@ results = [
 
 lines = [f"{'Backend':<20} {'P50':>8} {'P95':>8} {'P99':>8} (ms)"]
 
-lines += [
-    f"{r['name']:<20} {r['p50']:>8.3f} "
-    f"{r['p95']:>8.3f} {r['p99']:>8.3f}"
-    for r in results
-]
+lines += [f"{r['name']:<20} {r['p50']:>8.3f} {r['p95']:>8.3f} {r['p99']:>8.3f}" for r in results]
 
 print("\n".join(lines))
 
@@ -102,9 +87,7 @@ report = ROOT / "reports" / "benchmark.md"
 report.parent.mkdir(exist_ok=True)
 
 rows = "\n".join(
-    f"| {r['name']} | {r['p50']:.3f} | "
-    f"{r['p95']:.3f} | {r['p99']:.3f} |"
-    for r in results
+    f"| {r['name']} | {r['p50']:.3f} | {r['p95']:.3f} | {r['p99']:.3f} |" for r in results
 )
 
 report.write_text(

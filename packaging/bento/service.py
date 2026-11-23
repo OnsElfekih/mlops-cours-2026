@@ -1,4 +1,3 @@
-
 """Étape 6.2 — variante BentoML de l'API : même route /predict, même JSON, port 3000."""
 
 from typing import Annotated
@@ -15,15 +14,9 @@ META = bentoml.models.get(MODEL_TAG).info.metadata
 FEATURES = [*META["numeric"], *META["categorical"]]
 THRESHOLD = float(META["threshold"])
 
-Numeric = Annotated[
-    float | None,
-    Field(strict=True, allow_inf_nan=False)
-]
+Numeric = Annotated[float | None, Field(strict=True, allow_inf_nan=False)]
 
-Categorical = Annotated[
-    str | None,
-    Field(strict=True, min_length=1)
-]
+Categorical = Annotated[str | None, Field(strict=True, min_length=1)]
 
 Instance = create_model(
     "Instance",
@@ -33,33 +26,17 @@ Instance = create_model(
 )
 
 
-@bentoml.service(
-    name="scoring_bento",
-    resources={"cpu": "1"},
-    traffic={"timeout": 10}
-)
+@bentoml.service(name="scoring_bento", resources={"cpu": "1"}, traffic={"timeout": 10})
 class ScoringBento:
-
     bento_model = bentoml.models.BentoModel(MODEL_TAG)
 
     def __init__(self) -> None:
-        self.model = bentoml.sklearn.load_model(
-            self.bento_model
-        )
+        self.model = bentoml.sklearn.load_model(self.bento_model)
 
     @bentoml.api
-    def predict(
-        self,
-        instances: Annotated[
-            list[Instance],
-            Field(min_length=1)
-        ]
-    ) -> dict:
+    def predict(self, instances: Annotated[list[Instance], Field(min_length=1)]) -> dict:
 
-        df = pd.DataFrame(
-            [i.model_dump() for i in instances],
-            columns=FEATURES
-        )
+        df = pd.DataFrame([i.model_dump() for i in instances], columns=FEATURES)
 
         df = df.replace({None: np.nan})
 
@@ -70,10 +47,6 @@ class ScoringBento:
             "positive_class": META["positive_class"],
             "threshold": THRESHOLD,
             "predictions": [
-                {
-                    "probability": float(p),
-                    "prediction": int(p >= THRESHOLD)
-                }
-                for p in proba
+                {"probability": float(p), "prediction": int(p >= THRESHOLD)} for p in proba
             ],
         }

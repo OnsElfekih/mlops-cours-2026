@@ -1,4 +1,3 @@
-
 """Vérifie que le modèle ONNX prédit comme le modèle scikit-learn."""
 
 import json
@@ -22,30 +21,18 @@ meta = json.loads((ROOT / "packaging/model/metadata.json").read_text())
 
 X, _ = cfg.read_xy(ROOT / "data/processed/test.csv")
 
-mlflow.set_tracking_uri(
-    os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
-)
+mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 
 # Charger la version exacte du modèle exporté
-skm = mlflow.sklearn.load_model(
-    f"models:/{meta['model_name']}/{meta['model_version']}"
-)
+skm = mlflow.sklearn.load_model(f"models:/{meta['model_name']}/{meta['model_version']}")
 
 # Charger le modèle ONNX
-sess = ort.InferenceSession(
-    str(ROOT / "packaging/model/model.onnx")
-)
+sess = ort.InferenceSession(str(ROOT / "packaging/model/model.onnx"))
 
 # Préparer les variables numériques et catégorielles
-feed = {
-    c: X[[c]].astype(np.float64).to_numpy()
-    for c in cfg.numeric
-}
+feed = {c: X[[c]].astype(np.float64).to_numpy() for c in cfg.numeric}
 
-feed |= {
-    c: X[[c]].fillna("").astype(str).to_numpy(dtype=object)
-    for c in cfg.categorical
-}
+feed |= {c: X[[c]].fillna("").astype(str).to_numpy(dtype=object) for c in cfg.categorical}
 
 # Comparer les probabilités
 p1 = skm.predict_proba(X)[:, 1]

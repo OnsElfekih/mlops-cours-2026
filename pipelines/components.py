@@ -14,7 +14,17 @@ paramètre ne doit dépendre d'une constante de ce module.
 import os
 
 from kfp import dsl
-from kfp.dsl import HTML, Artifact, ClassificationMetrics, Dataset, Input, Markdown, Metrics, Model, Output
+from kfp.dsl import (
+    HTML,
+    Artifact,
+    ClassificationMetrics,
+    Dataset,
+    Input,
+    Markdown,
+    Metrics,
+    Model,
+    Output,
+)
 
 # Image construite et poussée à l'étape 2.4. Nouveau code dans l'image = nouveau tag.
 # Surcharge possible à la compilation : PIPELINE_IMAGE=… python -m pipelines.scoring_pipeline
