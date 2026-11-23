@@ -185,3 +185,92 @@ L'objectif est de réduire les 48 vulnérabilités HIGH détectées dans l'image
 Enregistrer dans les logs de FastAPI le temps d'exécution, le nombre d'observations traitées et la version du modèle.
 
 Cette amélioration facilitera le suivi des performances et le diagnostic des erreurs.
+
+## 6. Comparaison des travaux d'Ons et d'Eya
+
+Les deux implémentations du Lab 4 ont été comparées avant leur
+intégration dans Ons/mlops-improvements.
+
+### 6.1. Résultats des deux environnements
+
+| Indicateur | Ons | Eya |
+|---|---:|---:|
+| Image Docker optimisée | 428 Mo | 374 Mo |
+| ONNX P50 | 0,077 ms | 0,080 ms |
+| Accélération ONNX | x44,7 | x49,9 |
+| Vulnérabilités HIGH | 48 | 51 |
+| Vulnérabilités CRITICAL | 0 | 0 |
+| Vérifications Lab 4 | 16/16 | 16/16 |
+
+Les résultats ont été obtenus sur des environnements distincts.
+Ils ne constituent pas un benchmark comparatif à matériel identique.
+
+### 6.2. Contributions conservées
+
+Contributions d'Ons :
+- API FastAPI et packaging ONNX validés.
+- Image Docker multi-stage avec utilisateur non-root.
+- Analyse supplémentaire du modèle skops avec NumPy 1.26.
+- Rapport détaillé des benchmarks et scans de sécurité.
+
+Contributions d'Eya :
+- Script de test de charge packaging/locustfile.py.
+- Résultats de charge avec 100 utilisateurs.
+- Rapports de benchmark et de sécurité conservés
+  dans reports/m4-eya/.
+- Documentation des configurations Docker.
+
+Le modèle ONNX conservé est scoring-model v12.
+Son seuil de décision est 0.3182.
+Son empreinte SHA-256 correspond aux métadonnées.
+
+### 6.3. Validation du code commun
+
+La version intégrée dans Ons/mlops-improvements a été
+testée avec les résultats suivants :
+
+- make check-m3 : 20/20.
+- make check-m4 TAG=1.0.1 : 16/16.
+- Image Docker : localhost:5001/scoring-api:1.0.1.
+- Taille mesurée : 428 Mo.
+- API FastAPI : /health, /metadata et /predict validés.
+- Modèle ONNX : empreinte SHA-256 vérifiée.
+
+### 6.4. Tests de charge Locust
+
+Le test de charge a été exécuté sur l'image commune 1.0.1.
+
+| Indicateur | 5 utilisateurs | 100 utilisateurs |
+|---|---:|---:|
+| Durée | 15 s | 30 s |
+| Requêtes | 1 884 | 40 343 |
+| Échecs | 0 | 0 |
+| Débit | 130,80 req/s | 1 361,59 req/s |
+| P50 | 2 ms | 25 ms |
+| P95 | 3 ms | 62 ms |
+| P99 | 5 ms | 84 ms |
+
+Le scénario de 100 utilisateurs a été exécuté avec une
+vitesse de démarrage de 10 utilisateurs par seconde.
+
+Locust a signalé une utilisation CPU supérieure à 90 %.
+Cette saturation peut influencer le débit et les latences.
+
+Eya avait mesuré 53 494 requêtes sans échec sur son
+environnement, avec un P50 de 13 ms et un P95 de 39 ms.
+
+Les deux environnements ont donc validé le traitement
+des requêtes sans erreur dans leurs scénarios respectifs.
+
+Les fichiers CSV du test commun sont conservés dans reports/.
+
+### 6.5. Bilan de l'intégration
+
+La fusion conserve les contributions des deux membres.
+Les contrôles des Labs 3 et 4 sont réussis.
+
+L'image Docker commune a été reconstruite, publiée dans
+le Registry local et validée avec le script Locust d'Eya.
+
+Les rapports individuels restent disponibles pour
+assurer la traçabilité des résultats.
